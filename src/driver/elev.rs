@@ -55,8 +55,8 @@ impl Elevator {
             SetElevator::StopButtonLight(on)                => [5, on as u8, 0, 0]
         };
 
-        let mut sock = self.socket.lock().unwrap();
-        sock.write(&message).unwrap();
+        let mut sock = self.socket.lock().expect("Could not lock elevator socket mutex!");
+        sock.write(&message)?;
         
         Ok(())
     }
@@ -68,24 +68,24 @@ impl Elevator {
             GetElevator::Obstuction                 => [9, 0, 0, 0]
         };
 
-        let mut sock = self.socket.lock().unwrap();
-        sock.write(&message).unwrap();
-        sock.read(&mut message)?;//.unwrap()
+        let mut sock = self.socket.lock().expect("Could not lock elevator socket mutex!");
+        sock.write(&message)?;
+        sock.read(&mut message)?;//?
 
         Ok(message[1] != 0)
     }
 
-    pub fn get_floor_sensor(&self) -> Option<u8> {
+    pub fn get_floor_sensor(&self) -> Result<Option<u8>> {
         let mut message = [7, 0, 0, 0];
 
-        let mut sock = self.socket.lock().unwrap();
-        sock.write(&message).unwrap();
-        sock.read(&mut message).unwrap();
+        let mut sock = self.socket.lock().expect("Could not lock elevator socket mutex!");
+        sock.write(&message)?;
+        sock.read(&mut message)?;
         
         if message[1] != 0 {
-            Some(message[1])
+            Ok(Some(message[1]))
         } else {
-            None
+            Ok(None)
         }
     }
 }
