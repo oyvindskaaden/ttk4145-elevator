@@ -2,7 +2,7 @@ use crossbeam_channel as cbc;
 
 use std::time;
 
-pub enum ButtonCall{
+pub enum ButtonType{
     Up,
     Down,
     Cab
@@ -10,7 +10,7 @@ pub enum ButtonCall{
 
 
 enum DriverMessage {
-    CallButton(u8, ButtonCall),
+    CallButton(u8, ButtonType),
     FloorSensor(u8),
     StopButton(bool),
     Obstruction(bool),
