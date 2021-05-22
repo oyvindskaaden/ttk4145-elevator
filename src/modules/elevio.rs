@@ -17,6 +17,7 @@ pub enum ButtonType{
 }
 
 /// Enum for motor direction
+#[derive(Copy, Clone, Debug)]
 #[repr(u8)]
 pub enum MotorDirection {
     Stop,
@@ -68,33 +69,34 @@ impl ElevIO {
         Ok(read_elev)
     }
 
-    pub fn set_motor_dir(&self, dir: MotorDirection)                                -> Result<()> { self.set([1, dir as u8, 0, 0]) }
-    pub fn set_call_button_light(&self, button: ButtonType, floor: u8, on: bool)    -> Result<()> { self.set([2, button as u8, floor as u8, on as u8]) }
-    pub fn set_floor_indicator_light(&self, floor: u8)                              -> Result<()> { self.set([3, floor , 0, 0]) }
-    pub fn set_door_open_light(&self, on: bool)                                     -> Result<()> { self.set([4, on as u8, 0, 0]) }
-    pub fn set_stop_button_light(&self, on: bool)                                   -> Result<()> { self.set([5, on as u8, 0, 0]) }
-
-    pub fn get_order_button(&self, button: ButtonType, floor: u8) -> Result<bool> { 
+    
+    fn get_order_button(&self, button: ButtonType, floor: u8) -> Result<bool> { 
         Ok(self.get([6, button as u8, floor, 0])?[1] != 0)
     }
-
-    pub fn get_stop_button(&self) -> Result<bool> { 
+    
+    fn get_stop_button(&self) -> Result<bool> { 
         Ok(self.get([8, 0, 0, 0])?[1] != 0)
     }
-
-    pub fn get_is_obstuction(&self) -> Result<bool> { 
-        Ok(self.get([8, 0, 0, 0])?[1] != 0)
+    
+    fn get_is_obstucted(&self) -> Result<bool> { 
+        Ok(self.get([9, 0, 0, 0])?[1] != 0)
     }
-
+    
     pub fn get_floor_sensor(&self) -> Result<Option<u8>> {
         let message = self.get([7, 0, 0, 0])?;
-
         Ok( if message[1] != 0 {
             Some(message[2])
         } else {
             None
         })
     }
+    
+    pub fn set_motor_dir(&self, dir: MotorDirection)                                -> Result<()> { self.set([1, dir as u8, 0, 0]) }
+    pub fn set_call_button_light(&self, button: ButtonType, floor: u8, on: bool)    -> Result<()> { self.set([2, button as u8, floor as u8, on as u8]) }
+    pub fn set_floor_indicator_light(&self, floor: u8)                              -> Result<()> { self.set([3, floor , 0, 0]) }
+    pub fn set_door_open_light(&self, on: bool)                                     -> Result<()> { self.set([4, on as u8, 0, 0]) }
+    pub fn set_stop_button_light(&self, on: bool)                                   -> Result<()> { self.set([5, on as u8, 0, 0]) }
+
 
     pub fn poll_order_buttons(&self, ch: cbc::Sender<ElevRet>, poll_period: time::Duration) {
         let mut prev = vec![[false; 3]; self.num_floors.into()];
@@ -104,7 +106,7 @@ impl ElevIO {
                     if let Ok(on) = self.get_order_button(*button, floor) {
                         if on && !prev[floor as usize][*button as usize] {
                             ch.send(ElevRet::OrderButton(floor, *button))
-                                .expect("Could not send OrderButton over channel")
+                                .expect("Could not send OrderButton over channel");
                         }
                         prev[floor as usize][*button as usize] = on;
                     }
@@ -113,25 +115,49 @@ impl ElevIO {
             thread::sleep(poll_period)
         }
     }
+
+    pub fn poll_floor_sensors(&self, ch: cbc::Sender<ElevRet>, poll_period: time::Duration) {
+        let mut prev = u8::MAX;
+
+        loop {
+            if let Ok(Some(floor)) = self.get_floor_sensor() {
+                if floor != prev {
+                    ch.send(ElevRet::FloorSensor(floor))
+                        .expect("Could not send OrderButton over channel");
+                    prev = floor;
+                }
+            }
+            thread::sleep(poll_period);
+        }
+    }
+
+    pub fn poll_stop_button(&self, ch: cbc::Sender<ElevRet>, poll_period: time::Duration) {
+        let mut prev = false;
+
+        loop {
+            if let Ok(on) = self.get_stop_button() {
+                if on != prev {
+                    ch.send(ElevRet::StopButton(on))
+                        .expect("Could not send OrderButton over channel");
+                    prev = on;
+                }
+            }
+            thread::sleep(poll_period);
+        }
+    }
+
+    pub fn poll_is_obstructed(&self, ch: cbc::Sender<ElevRet>, poll_period: time::Duration) {
+        let mut prev = false;
+
+        loop {
+            if let Ok(obstucted) = self.get_is_obstucted(){
+                if obstucted != prev {
+                    ch.send(ElevRet::Obstuction(obstucted))
+                        .expect("Could not send OrderButton over channel");
+                    prev = obstucted;
+                }
+            }
+            thread::sleep(poll_period);
+        }
+    }
 }
-
-/*
-use std::time;
-
-
-
-
-pub enum ElevIOMessage {
-    CallButton(u8, ButtonType),
-    FloorSensor(u8),
-    StopButton(bool),
-    Obstruction(bool),
-}
-
-pub fn poll_elevator(
-    elevator:               ElevIO,
-    elevator_poll_sender:   cbc::Sender<ElevIOMessage>,
-    poll_period:            time::Duration
-){
-    
-}*/
